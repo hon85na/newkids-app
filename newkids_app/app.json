@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "뉴키즈",
+    "slug": "newkids-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#151E49",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#fffdf8"
+    },
+    "ios": {
+      "bundleIdentifier": "net.newkids.app",
+      "supportsTablet": true,
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "예약·문의에 사진을 첨부할 때 사진 보관함을 사용합니다.",
+        "NSCameraUsageDescription": "예약·문의에 사진을 첨부할 때 카메라를 사용합니다."
+      }
+    },
+    "android": {
+      "package": "net.newkids.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFDF8"
+      }
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "dbddcd68-818b-458c-96d0-4fd49420a2d9"
+      }
+    },
+    "owner": "hon85na"
+  }
+}

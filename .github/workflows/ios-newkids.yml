@@ -1,0 +1,66 @@
+# 뉴키즈 앱 iOS 빌드 → TestFlight 업로드 (Mac 없이 GitHub 의 macOS 기계에서)
+# 비밀값(이미 등록됨): ASC_KEY_ID · ASC_ISSUER_ID · ASC_KEY_P8
+name: ios-newkids-testflight
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 75
+    env:
+      TEAM: 4N46VJ2QTZ
+      BUNDLE: net.newkids.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - name: Xcode 26 선택
+        run: |
+          ls -d /Applications/Xcode*.app
+          X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+      - name: 앱 만들기(Expo 사전 빌드 + Pods)
+        working-directory: newkids_app
+        run: |
+          npm install --no-audit --no-fund --legacy-peer-deps
+          CI=1 npx expo prebuild --platform ios
+          ls ios
+      - name: App Store Connect API 키
+        env:
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          KID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          F=~/private_keys/AuthKey_$KID.p8
+          if printf '%s' "$P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$P8" > "$F"
+          else { echo '-----BEGIN PRIVATE KEY-----'; printf '%s\n' "$P8" | tr -d ' \r\t' | grep -v '^$'; echo '-----END PRIVATE KEY-----'; } > "$F"; fi
+          echo "key lines: $(wc -l < "$F")"
+      - name: 빌드(아카이브)
+        working-directory: newkids_app/ios
+        run: |
+          WS=$(ls -d *.xcworkspace | head -1); SCHEME=$(basename "$WS" .xcworkspace)
+          echo "workspace=$WS scheme=$SCHEME"
+          arc() { xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath $RUNNER_TEMP/App.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} \
+            MARKETING_VERSION=1.0.0 CURRENT_PROJECT_VERSION=${{ github.run_number }} DEVELOPMENT_TEAM=$TEAM "$@" archive; }
+          if ! arc CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution"; then
+            echo "=== 배포 서명 아카이브 실패 → 서명 없이 아카이브 후 내보내기에서 서명"
+            rm -rf $RUNNER_TEMP/App.xcarchive
+            arc CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          fi
+      - name: TestFlight 업로드
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist <<'PL'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string><key>teamID</key><string>4N46VJ2QTZ</string><key>signingStyle</key><string>automatic</string><key>manageAppVersionAndBuildNumber</key><false/></dict></plist>
+          PL
+          xcodebuild -exportArchive -archivePath $RUNNER_TEMP/App.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist -exportPath $RUNNER_TEMP/out \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }}
