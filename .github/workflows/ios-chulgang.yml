@@ -113,7 +113,7 @@ jobs:
           <key>LSRequiresIPhoneOS</key><true/>
           <key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchBg</string></dict>
           <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
-          <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+          <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
           <key>NSPhotoLibraryUsageDescription</key><string>사업자등록증·프로필 사진을 올릴 때 사진을 선택합니다.</string>
           <key>NSCameraUsageDescription</key><string>서류·프로필 사진을 촬영해 올릴 때 사용합니다.</string>
           </dict></plist>
