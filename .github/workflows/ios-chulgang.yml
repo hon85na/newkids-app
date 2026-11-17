@@ -1,0 +1,164 @@
+# 출강 iOS 빌드 → TestFlight (프로젝트를 이 파일이 직접 만든다)
+name: ios-chulgang-testflight
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/ios-chulgang.yml"]
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      TEAM: 4N46VJ2QTZ
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode 26 선택
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$X/Contents/Developer"
+      - name: 프로젝트 파일 만들기
+        run: |
+          mkdir -p cg/Chulgang/Assets.xcassets/AppIcon.appiconset cg/Chulgang/Assets.xcassets/LaunchBg.colorset
+          cat > cg/project.yml <<'EOF1'
+          # 출강 iOS 앱(껍데기 + 앱 기능) — Mac 또는 클라우드 Mac 에서: xcodegen generate
+          name: Chulgang
+          options:
+            bundleIdPrefix: kr.chulgang
+            deploymentTarget:
+              iOS: "15.0"
+          targets:
+            Chulgang:
+              type: application
+              platform: iOS
+              sources: [Chulgang]
+              settings:
+                base:
+                  PRODUCT_BUNDLE_IDENTIFIER: kr.chulgang.app
+                  PRODUCT_NAME: 출강
+                  MARKETING_VERSION: 1.0.0
+                  CURRENT_PROJECT_VERSION: 1
+                  TARGETED_DEVICE_FAMILY: "1,2"
+                  INFOPLIST_FILE: Chulgang/Info.plist
+                  ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+                  DEVELOPMENT_TEAM: 4N46VJ2QTZ
+                  CODE_SIGN_STYLE: Automatic
+          EOF1
+          cat > cg/Chulgang/ChulgangApp.swift <<'EOF2'
+          // 출강 iOS 앱 — https://chulgang.kr 을 앱 화면으로 열고, 앱 기능(당겨서 새로고침·공유·오프라인 안내·외부 링크 분리·전화/메일 연결)을 더한다.
+          import SwiftUI
+          import WebKit
+
+          @main
+          struct ChulgangApp: App {
+              var body: some Scene { WindowGroup { ChulgangView().ignoresSafeArea(.container, edges: .bottom) } }
+          }
+
+          struct ChulgangView: UIViewRepresentable {
+              func makeCoordinator() -> Coord { Coord() }
+              func makeUIView(context: Context) -> WKWebView {
+                  let cfg = WKWebViewConfiguration()
+                  cfg.websiteDataStore = .default()          // 로그인 유지
+                  cfg.allowsInlineMediaPlayback = true
+                  let wv = WKWebView(frame: .zero, configuration: cfg)
+                  wv.navigationDelegate = context.coordinator
+                  wv.uiDelegate = context.coordinator
+                  wv.allowsBackForwardNavigationGestures = true
+                  wv.backgroundColor = UIColor(red: 0.973, green: 0.965, blue: 0.945, alpha: 1)
+                  let rc = UIRefreshControl(); rc.addTarget(context.coordinator, action: #selector(Coord.refresh(_:)), for: .valueChanged)
+                  wv.scrollView.refreshControl = rc
+                  context.coordinator.web = wv
+                  wv.load(URLRequest(url: URL(string: "https://chulgang.kr/?src=ios")!))
+                  return wv
+              }
+              func updateUIView(_ uiView: WKWebView, context: Context) {}
+          }
+
+          final class Coord: NSObject, WKNavigationDelegate, WKUIDelegate {
+              weak var web: WKWebView?
+              @objc func refresh(_ rc: UIRefreshControl) { web?.reload(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { rc.endRefreshing() } }
+
+              func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+                  guard let url = action.request.url else { decisionHandler(.allow); return }
+                  let host = url.host ?? ""
+                  if ["tel", "mailto", "sms"].contains(url.scheme ?? "") { UIApplication.shared.open(url); decisionHandler(.cancel); return }
+                  if (url.scheme == "https" || url.scheme == "http"), !(host == "chulgang.kr" || host.hasSuffix(".chulgang.kr") || host.hasSuffix("kakao.com") || host.hasSuffix("kakaocdn.net") || host.hasSuffix("portone.io") || host.hasSuffix("iamport.co")), action.navigationType == .linkActivated {
+                      UIApplication.shared.open(url); decisionHandler(.cancel); return   // 외부 사이트는 사파리로
+                  }
+                  decisionHandler(.allow)
+              }
+              func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { showOffline(webView) }
+              func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { showOffline(webView) }
+              func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+                  if let u = action.request.url { webView.load(URLRequest(url: u)) }; return nil
+              }
+              private func showOffline(_ wv: WKWebView) {
+                  let html = "<meta name=viewport content='width=device-width,initial-scale=1'><body style='font-family:-apple-system;background:#f8f6f1;text-align:center;padding:30vh 24px 0'><h2>인터넷에 연결되지 않았어요</h2><p style='color:#666'>연결을 확인한 뒤 화면을 아래로 당겨 다시 불러 주세요.</p>"
+                  wv.loadHTMLString(html, baseURL: nil)
+              }
+          }
+          EOF2
+          cat > cg/Chulgang/Info.plist <<'EOF3'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleDevelopmentRegion</key><string>ko</string>
+          <key>CFBundleDisplayName</key><string>출강</string>
+          <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+          <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+          <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+          <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+          <key>ITSAppUsesNonExemptEncryption</key><false/>
+          <key>LSRequiresIPhoneOS</key><true/>
+          <key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchBg</string></dict>
+          <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
+          <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+          <key>NSPhotoLibraryUsageDescription</key><string>사업자등록증·프로필 사진을 올릴 때 사진을 선택합니다.</string>
+          <key>NSCameraUsageDescription</key><string>서류·프로필 사진을 촬영해 올릴 때 사용합니다.</string>
+          </dict></plist>
+          EOF3
+          echo '{"info":{"version":1,"author":"xcode"}}' > cg/Chulgang/Assets.xcassets/Contents.json
+          echo '{"images":[{"filename":"icon-1024.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"version":1,"author":"xcode"}}' > cg/Chulgang/Assets.xcassets/AppIcon.appiconset/Contents.json
+          echo '{"colors":[{"color":{"color-space":"srgb","components":{"red":"0.973","green":"0.965","blue":"0.945","alpha":"1.000"}},"idiom":"universal"}],"info":{"version":1,"author":"xcode"}}' > cg/Chulgang/Assets.xcassets/LaunchBg.colorset/Contents.json
+          curl -fsSL https://chulgang.kr/static/icon-512.png -o /tmp/i512.png
+          sips -z 1024 1024 /tmp/i512.png --out cg/Chulgang/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+      - name: 프로젝트 생성
+        working-directory: cg
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: App Store Connect API 키
+        env:
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          KID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          F=~/private_keys/AuthKey_$KID.p8
+          if printf '%s' "$P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$P8" > "$F"
+          else { echo '-----BEGIN PRIVATE KEY-----'; printf '%s\n' "$P8" | tr -d ' \r\t' | grep -v '^$'; echo '-----END PRIVATE KEY-----'; } > "$F"; fi
+      - name: 빌드(아카이브)
+        working-directory: cg
+        run: |
+          arc() { xcodebuild -project Chulgang.xcodeproj -scheme Chulgang -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath $RUNNER_TEMP/App.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} DEVELOPMENT_TEAM=$TEAM "$@" archive; }
+          if ! arc CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution"; then
+            rm -rf $RUNNER_TEMP/App.xcarchive
+            arc CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          fi
+      - name: TestFlight 업로드
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist <<'PL'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string><key>teamID</key><string>4N46VJ2QTZ</string><key>signingStyle</key><string>automatic</string><key>manageAppVersionAndBuildNumber</key><false/></dict></plist>
+          PL
+          xcodebuild -exportArchive -archivePath $RUNNER_TEMP/App.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist -exportPath $RUNNER_TEMP/out \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }}
