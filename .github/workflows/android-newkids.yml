@@ -19,6 +19,13 @@ jobs:
         run: |
           npm install --no-audit --no-fund --legacy-peer-deps
           npx expo prebuild --platform android --no-install
+      - name: 타깃 API 36 및 버전코드 설정
+        working-directory: newkids_app
+        run: |
+          printf '\nandroid.compileSdkVersion=36\nandroid.targetSdkVersion=36\nandroid.buildToolsVersion=36.0.0\nandroid.suppressUnsupportedCompileSdk=36\n' >> android/gradle.properties
+          sed -i 's/versionCode 1$/versionCode ${{ github.run_number }}/' android/app/build.gradle
+          grep -n "versionCode" android/app/build.gradle
+          tail -5 android/gradle.properties
       - name: 서명 설정
         working-directory: newkids_app
         env:
