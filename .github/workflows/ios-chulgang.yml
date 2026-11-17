@@ -146,10 +146,7 @@ jobs:
             -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
             -authenticationKeyID ${{ secrets.ASC_KEY_ID }} -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} DEVELOPMENT_TEAM=$TEAM "$@" archive; }
-          if ! arc CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution"; then
-            rm -rf $RUNNER_TEMP/App.xcarchive
-            arc CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
-          fi
+          arc CODE_SIGN_STYLE=Automatic
       - name: TestFlight 업로드
         run: |
           cat > $RUNNER_TEMP/ExportOptions.plist <<'PL'
